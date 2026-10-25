@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MC Bot Launcher</title>
+<style>
+:root{
+  --bg:#14181b; --panel:#1b2126; --raised:#232b31; --line:#2a343b;
+  --text:#dfe6e9; --dim:#8a9aa3; --grass:#7bc043; --amber:#f0b34a; --red:#ef6a5e; --blue:#6cb6ff;
+  --ui:"Segoe UI",system-ui,-apple-system,sans-serif;
+  --mono:"Cascadia Mono",Consolas,"Liberation Mono",monospace;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--text);font:14px/1.45 var(--ui)}
+button,input,select,textarea{font:inherit;color:inherit}
+button{background:var(--raised);border:1px solid var(--line);border-radius:6px;padding:6px 12px;cursor:pointer}
+button:hover{border-color:var(--dim)}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--blue);outline-offset:1px}
+button.primary{background:var(--grass);border-color:var(--grass);color:#0f1a08;font-weight:600}
+button.danger{color:var(--red)}
+button.on{background:var(--grass);border-color:var(--grass);color:#0f1a08}
+input,select,textarea{background:#0f1315;border:1px solid var(--line);border-radius:6px;padding:6px 8px;width:100%}
+input[type=checkbox]{width:auto;accent-color:var(--grass)}
+
+.app{display:grid;grid-template-columns:240px 1fr;height:100%}
+aside{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+aside h1{font-size:15px;margin:0;padding:14px 14px 10px}
+#list{flex:1;overflow:auto;padding:0 8px}
+.item{display:flex;gap:8px;align-items:center;padding:8px;border-radius:6px;cursor:pointer;border:1px solid transparent}
+.item:hover{background:var(--raised)}
+.item.sel{background:var(--raised);border-color:var(--line)}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--dim);flex:none}
+.dot.online{background:var(--grass)} .dot.connecting{background:var(--amber)}
+.item small{display:block;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item div{min-width:0}
+aside .add{margin:10px}
+
+main{display:flex;flex-direction:column;min-width:0;min-height:0}
+#empty{margin:auto;text-align:center;color:var(--dim);max-width:360px;padding:24px}
+#empty p{margin:6px 0 16px}
+#view{display:none;flex-direction:column;height:100%;min-height:0}
+.head{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--line)}
+.head h2{margin:0;font-size:17px}
+.head .sub{color:var(--dim)}
+.head .spacer{flex:1}
+.badge{padding:2px 10px;border-radius:99px;font-size:12px;background:var(--raised);border:1px solid var(--line)}
+.badge.online{color:var(--grass);border-color:var(--grass)} .badge.connecting{color:var(--amber);border-color:var(--amber)}
+
+.body{flex:1;display:grid;grid-template-columns:1fr 320px;min-height:0}
+.logwrap{display:flex;flex-direction:column;min-width:0;min-height:0;border-right:1px solid var(--line)}
+#log{flex:1;overflow:auto;padding:10px 14px;font:13px/1.5 var(--mono);white-space:pre-wrap;word-break:break-word}
+#log div{padding:1px 0}
+#log .t{color:#5d6c75;margin-right:8px}
+.k-sys{color:var(--blue)} .k-cmd{color:var(--grass)} .k-err{color:var(--red)} .k-warn{color:var(--amber)} .k-chat{color:var(--text)}
+.cmdbar{display:flex;gap:8px;padding:10px;border-top:1px solid var(--line);background:var(--panel)}
+.cmdbar input{font-family:var(--mono)}
+.side{overflow:auto;padding:14px;display:flex;flex-direction:column;gap:18px}
+.side h3{margin:0 0 8px;font-size:13px;color:var(--dim);font-weight:600}
+.stats{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-family:var(--mono);font-size:12.5px}
+.stats span:nth-child(odd){color:var(--dim)}
+.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.pad button{padding:8px 4px;user-select:none;touch-action:none}
+.row{display:flex;gap:6px;flex-wrap:wrap}
+.hot button{flex:1;min-width:30px;padding:6px 0}
+.opt{display:grid;gap:8px}
+.opt label{display:flex;gap:8px;align-items:center}
+.opt .num{width:84px;margin-left:auto}
+.hint{color:var(--dim);font-size:12px}
+
+dialog{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:0;width:min(520px,94vw)}
+dialog::backdrop{background:rgba(0,0,0,.6)}
+.dlg{padding:18px;display:grid;gap:12px;max-height:88vh;overflow:auto}
+.dlg h2{margin:0;font-size:16px}
+.f{display:grid;gap:4px}
+.f.chk{display:flex;gap:8px;align-items:center}
+.f>span{color:var(--dim);font-size:12.5px}
+.two{display:grid;grid-template-columns:2fr 1fr;gap:10px}
+.actions{display:flex;gap:8px;justify-content:flex-end}
+
+@media (max-width:860px){
+  .app{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+  aside{border-right:0;border-bottom:1px solid var(--line);max-height:180px}
+  .body{grid-template-columns:1fr;grid-template-rows:1fr auto;overflow:auto}
+  .logwrap{border-right:0;min-height:320px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <h1>MC Bot Launcher</h1>
+    <div id="list"></div>
+    <button class="primary add" id="btnAdd">Thêm bot</button>
+  </aside>
+
+  <main>
+    <div id="empty">
+      <h2>Chưa chọn bot nào</h2>
+      <p>Tạo một bot, nhập IP server và tên, rồi bấm Kết nối. Có thể chạy nhiều bot cùng lúc.</p>
+      <button class="primary" id="btnAdd2">Thêm bot</button>
+    </div>
+
+    <div id="view">
+      <div class="head">
+        <h2 id="hName"></h2>
+        <span class="badge" id="hState"></span>
+        <span class="sub" id="hSub"></span>
+        <span class="spacer"></span>
+        <button class="primary" id="btnConnect">Kết nối</button>
+        <button id="btnDisconnect">Ngắt kết nối</button>
+        <button id="btnEdit">Sửa cấu hình</button>
+        <button class="danger" id="btnRemove">Xóa</button>
+      </div>
+      <div class="body">
+        <div class="logwrap">
+          <div id="log" aria-live="polite"></div>
+          <div class="cmdbar">
+            <input id="cmd" placeholder="Gõ chat hoặc lệnh, ví dụ: /home farm — Enter để gửi, ↑ ↓ xem lại lệnh cũ" autocomplete="off">
+            <button class="primary" id="btnSend">Gửi</button>
+            <button id="btnClear" title="Chỉ xóa phần hiển thị">Xóa log</button>
+          </div>
+        </div>
+
+        <div class="side">
+          <section>
+            <h3>Trạng thái</h3>
+            <div class="stats">
+              <span>Vị trí</span><span id="sPos">-</span>
+              <span>Máu / Đói</span><span id="sHp">-</span>
+              <span>Thế giới</span><span id="sDim">-</span>
+              <span>Ping</span><span id="sPing">-</span>
+              <span>Người chơi</span><span id="sPl">-</span>
+              <span>Đang cầm</span><span id="sHeld">-</span>
+              <span>Giao thức</span><span id="sVer">-</span>
+            </div>
+          </section>
+
+          <section>
+            <h3>Di chuyển</h3>
+            <div class="pad">
+              <button data-turn="30,0">Xoay trái</button>
+              <button data-hold="forward">Tiến</button>
+              <button data-turn="-30,0">Xoay phải</button>
+              <button data-hold="left">Trái</button>
+              <button data-hold="back">Lùi</button>
+              <button data-hold="right">Phải</button>
+              <button data-hold="jump">Nhảy</button>
+              <button data-toggle="sneak">Ngồi</button>
+              <button data-toggle="sprint">Chạy nhanh</button>
+              <button data-turn="0,-20">Nhìn lên</button>
+              <button data-act="stop">Dừng hết</button>
+              <button data-turn="0,20">Nhìn xuống</button>
+            </div>
+            <p class="hint">Giữ nút hoặc dùng phím W A S D, Space, Shift khi không đang gõ.</p>
+          </section>
+
+          <section>
+            <h3>Hành động</h3>
+            <div class="row">
+              <button data-act="swing">Vung tay</button>
+              <button data-act="attack">Đánh mục tiêu gần</button>
+              <button data-act="use">Chuột phải</button>
+            </div>
+            <h3 style="margin-top:12px">Ô đồ nhanh</h3>
+            <div class="row hot" id="hot"></div>
+          </section>
+
+          <section>
+            <h3>Tự động</h3>
+            <div class="opt">
+              <label><input type="checkbox" id="oAfk"> Chống AFK (nhìn quanh, nhảy)
+                <input class="num" type="number" id="oAfkI" min="5" title="Giây giữa mỗi lần"></label>
+              <label><input type="checkbox" id="oAtk"> Tự đánh mob gần nhất</label>
+              <label><input type="checkbox" id="oUse"> Tự chuột phải</label>
+              <label>Chu kỳ click (ms)<input class="num" type="number" id="oClick" min="100" step="100"></label>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<dialog id="dlg"><div class="dlg" id="dlgBody"></div></dialog>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+const bots = new Map();   // id -> {id,cfg,state,info}
+const logs = new Map();   // id -> [entries]
+let selected = null;
+let pendingSelect = false;
+const held = new Set();   // phím đang giữ
+const toggled = new Set();
+const history = []; let hIdx = 0;
+
+const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`);
+const send = (o) => ws.readyState === 1 && ws.send(JSON.stringify(o));
+ws.onclose = () => { document.title = 'Mất kết nối - MC Bot Launcher'; setTimeout(() => location.reload(), 2000); };
+ws.onmessage = (e) => {
+  const m = JSON.parse(e.data);
+  if (m.type === 'init') {
+    for (const b of m.bots) { logs.set(b.id, b.logs || []); delete b.logs; bots.set(b.id, b); }
+    if (!selected && bots.size) selected = [...bots.keys()][0];
+    renderList(); showSelected();
+  } else if (m.type === 'summary') {
+    const b = m.bot; const isNew = !bots.has(b.id); bots.set(b.id, b);
+    if (!logs.has(b.id)) logs.set(b.id, []);
+    if (!selected || (isNew && pendingSelect)) { pendingSelect = false; releaseAll(); selected = b.id; showSelected(); }
+    renderList();
+    if (b.id === selected) updateHead();
+  } else if (m.type === 'removed') {
+    bots.delete(m.id); logs.delete(m.id);
+    if (selected === m.id) selected = bots.size ? [...bots.keys()][0] : null;
+    renderList(); showSelected();
+  } else if (m.type === 'log') {
+    const arr = logs.get(m.id) || []; arr.push(m.entry); if (arr.length > 600) arr.shift(); logs.set(m.id, arr);
+    if (m.id === selected) appendLog(m.entry);
+  } else if (m.type === 'info') {
+    const b = bots.get(m.id); if (b) b.info = m.info;
+    if (m.id === selected) updateInfo(m.info);
+  }
+};
+
+/* ---------- danh sách ---------- */
+function renderList() {
+  $('#list').innerHTML = [...bots.values()].map(b => `
+    <div class="item ${b.id === selected ? 'sel' : ''}" data-id="${b.id}">
+      <span class="dot ${b.state}"></span>
+      <div><strong>${esc(b.cfg.name || '(chưa đặt tên)')}</strong><small>${esc(b.cfg.host)}${b.cfg.port ? ':' + esc(b.cfg.port) : ''}</small></div>
+    </div>`).join('');
+}
+$('#list').onclick = (e) => {
+  const it = e.target.closest('.item'); if (!it) return;
+  releaseAll(); selected = it.dataset.id; renderList(); showSelected();
+};
+
+/* ---------- khung chính ---------- */
+const STATE_TXT = { offline: 'Đã ngắt', connecting: 'Đang kết nối...', online: 'Đang online' };
+function showSelected() {
+  const b = bots.get(selected);
+  $('#empty').style.display = b ? 'none' : 'block';
+  $('#view').style.display = b ? 'flex' : 'none';
+  if (!b) return;
+  $('#log').innerHTML = '';
+  (logs.get(selected) || []).forEach(appendLog);
+  updateHead(); updateInfo(b.info);
+}
+function updateHead() {
+  const b = bots.get(selected); if (!b) return;
+  const c = b.cfg;
+  $('#hName').textContent = c.name || '(chưa đặt tên)';
+  $('#hSub').textContent = `${c.host}${c.port ? ':' + c.port : ''} · ${c.version || 'tự nhận diện'} · ${c.auth === 'microsoft' ? 'Microsoft' : 'Offline'}`;
+  const st = $('#hState'); st.textContent = STATE_TXT[b.state]; st.className = 'badge ' + b.state;
+  $('#btnConnect').style.display = b.state === 'offline' ? '' : 'none';
+  $('#btnDisconnect').style.display = b.state === 'offline' ? 'none' : '';
+  $('#oAfk').checked = c.antiAfk; $('#oAfkI').value = c.afkInterval;
+  $('#oAtk').checked = c.autoAttack; $('#oUse').checked = c.autoUse; $('#oClick').value = c.clickInterval;
+  if (b.state !== 'online') updateInfo(null);
+}
+function updateInfo(i) {
+  const d = (id, v) => $(id).textContent = v ?? '-';
+  if (!i) { ['#sPos','#sHp','#sDim','#sPing','#sPl','#sHeld','#sVer'].forEach(x => d(x, '-')); return; }
+  d('#sPos', i.pos.join(' / ')); d('#sHp', `${Math.round(i.health ?? 0)} / ${Math.round(i.food ?? 0)}`);
+  d('#sDim', i.dim); d('#sPing', i.ping != null ? i.ping + ' ms' : '-'); d('#sPl', i.players);
+  d('#sHeld', i.held); d('#sVer', i.version);
+}
+function appendLog(en) {
+  const box = $('#log');
+  const near = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
+  const div = document.createElement('div');
+  div.className = 'k-' + en.kind;
+  const t = new Date(en.t).toLocaleTimeString('vi-VN', { hour12: false });
+  div.innerHTML = `<span class="t">${t}</span>${esc(en.text)}`;
+  box.appendChild(div);
+  while (box.children.length > 600) box.removeChild(box.firstChild);
+  if (near) box.scrollTop = box.scrollHeight;
+}
+
+/* ---------- gửi lệnh / chat ---------- */
+function sendCmd() {
+  const v = $('#cmd').value; if (!v.trim()) return;
+  send({ type: 'chat', id: selected, text: v });
+  if (history[history.length - 1] !== v) history.push(v);
+  hIdx = history.length; $('#cmd').value = '';
+}
+$('#btnSend').onclick = sendCmd;
+$('#cmd').onkeydown = (e) => {
+  if (e.key === 'Enter') sendCmd();
+  else if (e.key === 'ArrowUp' && history.length) { hIdx = Math.max(0, hIdx - 1); $('#cmd').value = history[hIdx]; e.preventDefault(); }
+  else if (e.key === 'ArrowDown') { hIdx = Math.min(history.length, hIdx + 1); $('#cmd').value = history[hIdx] || ''; e.preventDefault(); }
+};
+$('#btnClear').onclick = () => { $('#log').innerHTML = ''; };
+$('#btnConnect').onclick = () => send({ type: 'connect', id: selected });
+$('#btnDisconnect').onclick = () => send({ type: 'disconnect', id: selected });
+$('#btnRemove').onclick = () => { if (confirm('Xóa bot này khỏi danh sách?')) send({ type: 'remove', id: selected }); };
+$('#btnEdit').onclick = () => openEditor(bots.get(selected));
+$('#btnAdd').onclick = $('#btnAdd2').onclick = () => openEditor(null);
+
+/* ---------- điều khiển ---------- */
+function setHold(key, on, btn) {
+  if (on) held.add(key); else held.delete(key);
+  send({ type: 'control', id: selected, key, on });
+  if (btn) btn.classList.toggle('on', on);
+}
+function releaseAll() {
+  for (const k of [...held]) { send({ type: 'control', id: selected, key: k, on: false }); }
+  held.clear(); toggled.clear();
+  document.querySelectorAll('.pad .on').forEach(b => b.classList.remove('on'));
+}
+document.querySelectorAll('[data-hold]').forEach(btn => {
+  const k = btn.dataset.hold;
+  btn.addEventListener('pointerdown', (e) => { e.preventDefault(); setHold(k, true, btn); });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => btn.addEventListener(ev, () => held.has(k) && setHold(k, false, btn)));
+});
+document.querySelectorAll('[data-toggle]').forEach(btn => btn.onclick = () => {
+  const k = btn.dataset.toggle, on = !toggled.has(k);
+  on ? toggled.add(k) : toggled.delete(k);
+  send({ type: 'control', id: selected, key: k, on }); btn.classList.toggle('on', on);
+});
+document.querySelectorAll('[data-turn]').forEach(btn => btn.onclick = () => {
+  const [yaw, pitch] = btn.dataset.turn.split(',').map(Number);
+  send({ type: 'turn', id: selected, yaw, pitch });
+});
+document.querySelectorAll('[data-act]').forEach(btn => btn.onclick = () => {
+  if (btn.dataset.act === 'stop') releaseAll();
+  send({ type: 'action', id: selected, name: btn.dataset.act });
+});
+$('#hot').innerHTML = [1,2,3,4,5,6,7,8,9].map(n => `<button data-slot="${n - 1}">${n}</button>`).join('');
+$('#hot').onclick = (e) => { const b = e.target.closest('[data-slot]'); if (b) send({ type: 'action', id: selected, name: 'slot', value: Number(b.dataset.slot) }); };
+
+const KEYS = { KeyW: 'forward', KeyS: 'back', KeyA: 'left', KeyD: 'right', Space: 'jump', ShiftLeft: 'sneak' };
+const typing = () => /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) || $('#dlg').open;
+document.addEventListener('keydown', (e) => {
+  const k = KEYS[e.code]; if (!k || typing() || !selected || held.has(k)) return;
+  e.preventDefault(); setHold(k, true, document.querySelector(`[data-hold="${k}"]`));
+});
+document.addEventListener('keyup', (e) => {
+  const k = KEYS[e.code]; if (!k || !held.has(k)) return;
+  setHold(k, false, document.querySelector(`[data-hold="${k}"]`));
+});
+window.addEventListener('blur', releaseAll);
+
+/* ---------- tuỳ chọn tự động ---------- */
+const upd = (cfg) => send({ type: 'update', id: selected, cfg });
+$('#oAfk').onchange = (e) => upd({ antiAfk: e.target.checked });
+$('#oAfkI').onchange = (e) => upd({ afkInterval: e.target.value });
+$('#oAtk').onchange = (e) => upd({ autoAttack: e.target.checked });
+$('#oUse').onchange = (e) => upd({ autoUse: e.target.checked });
+$('#oClick').onchange = (e) => upd({ clickInterval: e.target.value });
+
+/* ---------- hộp thoại cấu hình ---------- */
+const FIELDS = [
+  ['name', 'Tên bot', 'text', 'Ví dụ: FarmBot'],
+  ['host', 'IP hoặc domain server', 'text', 'play.example.com'],
+  ['port', 'Port (để trống = 25565)', 'number', '25565'],
+  ['version', 'Phiên bản (để trống = tự nhận diện)', 'text', '1.21.11'],
+  ['auth', 'Kiểu đăng nhập', 'select', [['offline', 'Offline / crack (dùng với AuthMe)'], ['microsoft', 'Microsoft (server online-mode)']]],
+  ['password', 'Mật khẩu AuthMe', 'password', ''],
+  ['joinCommands', 'Lệnh chạy sau khi vào server (mỗi dòng một lệnh)', 'textarea', '/server survival\n/home farm'],
+  ['joinDelay', 'Chờ bao nhiêu giây sau khi vào rồi mới chạy các lệnh trên', 'number', ''],
+  ['autoAuth', 'Tự /register và /login khi server yêu cầu', 'checkbox'],
+  ['autoReconnect', 'Tự kết nối lại khi bị rớt', 'checkbox'],
+  ['autoStart', 'Tự kết nối khi server khởi động lại (Render/VPS)', 'checkbox'],
+  ['reconnectDelay', 'Chờ trước khi kết nối lại (giây, tăng dần nếu rớt liên tục)', 'number', '']
+];
+function openEditor(b) {
+  const cfg = b ? b.cfg : { auth: 'offline', autoAuth: true, autoReconnect: true, autoStart: true, reconnectDelay: 10, joinDelay: 6, joinCommands: '' };
+  const html = FIELDS.map(([k, label, type, extra]) => {
+    const v = cfg[k] ?? '';
+    if (type === 'checkbox') return `<label class="f chk"><input type="checkbox" id="f_${k}" ${v ? 'checked' : ''}> ${label}</label>`;
+    let ctl;
+    if (type === 'select') ctl = `<select id="f_${k}">${extra.map(([val, t]) => `<option value="${val}" ${v === val ? 'selected' : ''}>${t}</option>`).join('')}</select>`;
+    else if (type === 'textarea') ctl = `<textarea id="f_${k}" rows="3" placeholder="${esc(extra)}">${esc(v)}</textarea>`;
+    else ctl = `<input id="f_${k}" type="${type}" value="${esc(v)}" placeholder="${esc(extra || '')}" autocomplete="off">`;
+    return `<label class="f"><span>${label}</span>${ctl}</label>`;
+  }).join('');
+  $('#dlgBody').innerHTML = `<h2>${b ? 'Sửa cấu hình bot' : 'Thêm bot mới'}</h2>${html}
+    <p class="hint">${b && b.state !== 'offline' ? 'Thay đổi tên, IP, phiên bản chỉ có hiệu lực ở lần kết nối kế tiếp. ' : ''}Mật khẩu được lưu dạng văn bản trong profiles.json trên server (chỉ bạn xem được sau khi đăng nhập).</p>
+    <div class="actions"><button id="dCancel">Hủy</button><button class="primary" id="dOk">${b ? 'Lưu' : 'Tạo và kết nối'}</button></div>`;
+  $('#dCancel').onclick = () => $('#dlg').close();
+  $('#dOk').onclick = () => {
+    const out = {};
+    for (const [k, , type] of FIELDS) {
+      const el = $('#f_' + k);
+      out[k] = type === 'checkbox' ? el.checked : el.value;
+    }
+    if (!out.name.trim() || !out.host.trim()) { alert('Cần nhập tên bot và IP server.'); return; }
+    if (b) send({ type: 'update', id: b.id, cfg: out });
+    else { pendingSelect = true; send({ type: 'add', cfg: out, connect: true }); }
+    $('#dlg').close();
+  };
+  $('#dlg').showModal();
+}
+</script>
+</body>
+</html>

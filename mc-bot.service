@@ -1,0 +1,24 @@
+# Cài trên VPS:
+#   sudo cp mc-bot.service /etc/systemd/system/
+#   (sửa User, WorkingDirectory và mật khẩu bên dưới)
+#   sudo systemctl daemon-reload && sudo systemctl enable --now mc-bot
+[Unit]
+Description=MC Bot Launcher
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/mc-bot-launcher
+Environment=NODE_ENV=production
+Environment=HOST=0.0.0.0
+Environment=PORT=3000
+Environment=NO_OPEN=1
+Environment=APP_PASSWORD=doi-mat-khau-o-day
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

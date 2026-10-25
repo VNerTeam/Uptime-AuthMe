@@ -1,0 +1,23 @@
+[
+  {
+    "id": "1",
+    "cfg": {
+      "name": "dummy",
+      "host": "galaxy-mu.play.hosting",
+      "port": "25565",
+      "version": "1.21.11",
+      "auth": "offline",
+      "password": "Dummy@",
+      "autoAuth": true,
+      "autoReconnect": true,
+      "reconnectDelay": 10,
+      "antiAfk": false,
+      "afkInterval": 30,
+      "autoAttack": true,
+      "autoUse": true,
+      "clickInterval": 1000,
+      "joinCommands": "",
+      "joinDelay": 6
+    }
+  }
+]

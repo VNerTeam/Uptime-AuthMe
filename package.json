@@ -1,0 +1,16 @@
+{
+  "name": "mc-bot-launcher",
+  "version": "1.0.0",
+  "description": "Launcher bot Minecraft (mineflayer) có giao diện web chạy cục bộ: AuthMe, anti-timeout, điều khiển, log",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "mineflayer": "latest",
+    "ws": "^8.18.0"
+  }
+}

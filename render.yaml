@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: mc-bot-launcher
+    runtime: node
+    plan: free            # đổi thành starter nếu cần chạy 24/7 không bị ngủ + dùng ổ đĩa
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /health
+    envVars:
+      - key: APP_PASSWORD   # mật khẩu vào giao diện web, nhập trong dashboard Render
+        sync: false
+      - key: NO_OPEN
+        value: "1"
+      - key: NODE_VERSION
+        value: "22"
+      # Chỉ khi dùng gói trả phí + Persistent Disk (mount tại /var/data):
+      # - key: DATA_DIR
+      #   value: /var/data
