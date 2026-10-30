@@ -3,7 +3,7 @@ WORKDIR /app
 COPY package.json ./
 RUN npm install --omit=dev
 COPY . .
-ENV NO_OPEN=1 PORT=3000 DATA_DIR=/data
+ENV NO_OPEN=1 PORT=3000 DATA_DIR=/data NODE_OPTIONS=--max-old-space-size=384
 VOLUME /data
 EXPOSE 3000
 CMD ["node", "server.js"]

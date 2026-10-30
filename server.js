@@ -13,6 +13,7 @@ const mineflayer = require('mineflayer');
 let nbt = null;
 try { nbt = require('prismarine-nbt'); } catch { /* không bắt buộc */ }
 const { planDialog } = require('./dialog');
+const { Pvp } = require('./pvp');
 
 const HTTP_PORT = Number(process.env.PORT) || 3000;
 // Render/Docker/VPS đặt PORT hoặc HOST -> lắng nghe mọi địa chỉ; chạy cục bộ -> chỉ 127.0.0.1
@@ -43,6 +44,32 @@ const DEFAULTS = {
   autoUse: false,            // tự chuột phải (dùng vật phẩm đang cầm)
   clickInterval: 1000,       // ms
   autoStart: false,          // tự kết nối khi server (Render/VPS) khởi động lại
+  viewDistance: 4,           // tầm nhìn chunk: càng nhỏ càng tiết kiệm RAM (mặc định mineflayer là 12!)
+  // --- PvP: 1. Chung ---
+  pvpEnabled: false,         // đánh người chơi gần đó
+  pvpMode: 'all',            // all = mọi người chơi | retaliate = chỉ người vừa đánh mình
+  pvpRange: 16,              // tầm phát hiện (block)
+  pvpReach: 3,               // tầm đánh (block)
+  pvpIgnore: '',             // tên bỏ qua, cách nhau bằng dấu phẩy
+  pvpStrafe: true,           // di chuyển ngang né đòn
+  // --- 2. Kiếm / Rìu ---
+  pvpWeapon: 'auto',         // auto | sword | axe
+  pvpCrit: true,             // nhảy rồi đánh khi đang rơi (chí mạng)
+  pvpShieldBreak: true,      // đổi sang rìu khi đối thủ cầm khiên
+  // --- 3. End Crystal ---
+  crystalEnabled: false,
+  crystalObsidian: false,    // tự đặt obsidian làm đế nếu chưa có
+  crystalMaxSelf: 12,        // sát thương tự gánh tối đa (ước lượng thô, tính bằng máu)
+  crystalMinHp: 10,          // máu tối thiểu để đặt crystal
+  // --- 4. Auto Totem ---
+  totemEnabled: false,
+  // --- 5. Ăn & Giáp ---
+  eatEnabled: false, eatFood: 14,
+  gapEnabled: false, gapHp: 10,
+  armorEnabled: false,
+  // --- 6. An toàn ---
+  retreatHp: 0,              // 0 = tắt; máu <= số này thì chạy lui
+  logoutHp: 0,               // 0 = tắt; máu <= số này thì tự thoát server
   joinCommands: '',          // lệnh chạy sau khi vào server, mỗi dòng 1 lệnh
   joinDelay: 6               // giây chờ sau khi spawn
 };
@@ -91,6 +118,9 @@ function sanitize(input) {
     else if (k === 'password' || k === 'joinCommands') out[k] = String(v ?? '');
     else out[k] = String(v ?? '').trim();
   }
+  if ('pvpMode' in out && !['all', 'retaliate'].includes(out.pvpMode)) out.pvpMode = 'all';
+  if ('pvpWeapon' in out && !['auto', 'sword', 'axe'].includes(out.pvpWeapon)) out.pvpWeapon = 'auto';
+  if ('viewDistance' in out) out.viewDistance = Math.max(2, Math.min(12, Math.round(out.viewDistance) || 4));
   return out;
 }
 
@@ -121,6 +151,7 @@ class Session {
     this.id = id;
     this.cfg = { ...DEFAULTS, ...sanitize(cfg || {}) };
     this.bot = null;
+    this.pvp = null;
     this.state = 'offline'; // offline | connecting | online
     this.logs = [];
     this.timers = new Set();
@@ -151,6 +182,7 @@ class Session {
       ping: b.player && b.player.ping,
       players: Object.keys(b.players || {}).length,
       held: b.heldItem ? b.heldItem.displayName || b.heldItem.name : 'Tay không',
+      target: this.pvp ? this.pvp.status() : null,
       version: b.version
     };
   }
@@ -186,7 +218,8 @@ class Session {
       host: c.host, port, username: c.name, auth: c.auth || 'offline',
       checkTimeoutInterval: 90 * 1000, // chịu lag server tới 90s mới coi là timeout
       connectTimeout: 30 * 1000,
-      hideErrors: true
+      hideErrors: true,
+      viewDistance: Math.max(2, Number(c.viewDistance) || 4)
     };
     if (c.version) opts.version = c.version;
     if (c.auth === 'microsoft') {
@@ -200,6 +233,7 @@ class Session {
     this.bot = bot;
     this.bindEvents(bot);
     this.bindDialog(bot);
+    this.pvp = new Pvp(this, bot);
   }
 
   /* ----- Hộp thoại (Dialog) của AuthMe 6.x trên 1.21.6+ ----- */
@@ -307,6 +341,7 @@ class Session {
   }
 
   afterEnd(reason) {
+    if (this.pvp) { this.pvp.stop(); this.pvp = null; }
     this.clearTimers();
     this.bot = null;
     this.log('sys', 'Mất kết nối: ' + (reason || 'không rõ lý do'));

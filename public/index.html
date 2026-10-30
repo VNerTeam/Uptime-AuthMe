@@ -68,6 +68,9 @@ main{display:flex;flex-direction:column;min-width:0;min-height:0}
 .opt label{display:flex;gap:8px;align-items:center}
 .opt .num{width:84px;margin-left:auto}
 .hint{color:var(--dim);font-size:12px}
+.dlg{max-height:88vh;overflow:auto}
+.sec{border-top:1px solid var(--line);padding-top:10px;margin-top:12px;display:grid;gap:8px}
+.sec h3{margin:0;font-size:13px;color:var(--grass)}
 
 dialog{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:0;width:min(520px,94vw)}
 dialog::backdrop{background:rgba(0,0,0,.6)}
@@ -110,6 +113,7 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
         <span class="spacer"></span>
         <button class="primary" id="btnConnect">Kết nối</button>
         <button id="btnDisconnect">Ngắt kết nối</button>
+        <button id="btnPvp">⚔ PvP</button>
         <button id="btnEdit">Sửa cấu hình</button>
         <button class="danger" id="btnRemove">Xóa</button>
       </div>
@@ -298,6 +302,7 @@ $('#btnConnect').onclick = () => send({ type: 'connect', id: selected });
 $('#btnDisconnect').onclick = () => send({ type: 'disconnect', id: selected });
 $('#btnRemove').onclick = () => { if (confirm('Xóa bot này khỏi danh sách?')) send({ type: 'remove', id: selected }); };
 $('#btnEdit').onclick = () => openEditor(bots.get(selected));
+$('#btnPvp').onclick = () => { const b = bots.get(selected); if (b) openPvp(b); };
 $('#btnAdd').onclick = $('#btnAdd2').onclick = () => openEditor(null);
 
 /* ---------- điều khiển ---------- */
@@ -363,6 +368,7 @@ const FIELDS = [
   ['joinCommands', 'Lệnh chạy sau khi vào server (mỗi dòng một lệnh)', 'textarea', '/server survival\n/home farm'],
   ['joinDelay', 'Chờ bao nhiêu giây sau khi vào rồi mới chạy các lệnh trên', 'number', ''],
   ['autoAuth', 'Tự /register và /login khi server yêu cầu', 'checkbox'],
+  ['viewDistance', 'Tầm nhìn chunk (2–12, nhỏ = tiết kiệm RAM, khuyên 3–4)', 'number', '4'],
   ['autoReconnect', 'Tự kết nối lại khi bị rớt', 'checkbox'],
   ['autoStart', 'Tự kết nối khi server khởi động lại (Render/VPS)', 'checkbox'],
   ['reconnectDelay', 'Chờ trước khi kết nối lại (giây, tăng dần nếu rớt liên tục)', 'number', '']
@@ -391,6 +397,65 @@ function openEditor(b) {
     if (!out.name.trim() || !out.host.trim()) { alert('Cần nhập tên bot và IP server.'); return; }
     if (b) send({ type: 'update', id: b.id, cfg: out });
     else { pendingSelect = true; send({ type: 'add', cfg: out, connect: true }); }
+    $('#dlg').close();
+  };
+  $('#dlg').showModal();
+}
+
+/* ---------- hộp thoại PvP (chia theo mục) ---------- */
+const PVP_SECTIONS = [
+  ['1. Chung', 'Chọn ai bị đánh. Người chơi creative/spectator và NPC giả (không có trong danh sách người chơi) tự bị bỏ qua.', [
+    ['pvpEnabled', 'Bật auto PvP (đánh kiếm/rìu người chơi gần đó)', 'checkbox'],
+    ['pvpMode', 'Đối tượng', 'select', [['all', 'Mọi người chơi trong tầm phát hiện'], ['retaliate', 'Chỉ người vừa đánh mình (an toàn hơn)']]],
+    ['pvpRange', 'Tầm phát hiện (block, 3–32)', 'number'],
+    ['pvpReach', 'Tầm đánh (block, 2.5–4.5, mặc định 3)', 'number'],
+    ['pvpIgnore', 'Không đánh các tên này (bạn bè, cách nhau bằng dấu phẩy)', 'text'],
+    ['pvpStrafe', 'Di chuyển ngang để né đòn (strafe)', 'checkbox']]],
+  ['2. Kiếm / Rìu', 'Tự cầm vũ khí tốt nhất trong túi, chờ hồi chiêu đúng tốc độ từng loại.', [
+    ['pvpWeapon', 'Vũ khí', 'select', [['auto', 'Tự động (ưu tiên kiếm)'], ['sword', 'Chỉ kiếm'], ['axe', 'Chỉ rìu']]],
+    ['pvpCrit', 'Đòn chí mạng (nhảy rồi đánh lúc đang rơi)', 'checkbox'],
+    ['pvpShieldBreak', 'Đổi sang rìu khi đối thủ cầm khiên (rìu hạ khiên)', 'checkbox']]],
+  ['3. End Crystal', 'Cần có end_crystal trong túi và có sẵn obsidian/bedrock gần mục tiêu. Sát thương tự gánh chỉ là ước lượng thô, hãy đặt ngưỡng thấp.', [
+    ['crystalEnabled', 'Bật crystal PvP (đặt rồi đập nổ khi đối thủ ở xa tầm kiếm)', 'checkbox'],
+    ['crystalObsidian', 'Tự đặt obsidian làm đế nếu thiếu (cần obsidian trong túi)', 'checkbox'],
+    ['crystalMaxSelf', 'Sát thương tự gánh tối đa (máu, ước lượng)', 'number'],
+    ['crystalMinHp', 'Chỉ đặt crystal khi máu ≥', 'number']]],
+  ['4. Auto Totem', 'Luôn giữ Totem of Undying ở tay trái, vỡ cái nào thì thay cái mới ngay.', [
+    ['totemEnabled', 'Bật auto totem', 'checkbox']]],
+  ['5. Ăn & Giáp', 'Không ăn thường lúc đang giao chiến; táo vàng thì ăn bất cứ lúc nào máu thấp.', [
+    ['eatEnabled', 'Tự ăn khi đói', 'checkbox'],
+    ['eatFood', 'Ăn khi thanh đói ≤ (0–19)', 'number'],
+    ['gapEnabled', 'Ăn táo vàng khi máu thấp', 'checkbox'],
+    ['gapHp', 'Ăn táo khi máu ≤ (1–19, 20 = đầy)', 'number'],
+    ['armorEnabled', 'Tự mặc giáp tốt nhất trong túi', 'checkbox']]],
+  ['6. An toàn', 'Để 0 là tắt.', [
+    ['retreatHp', 'Chạy lui khỏi đối thủ khi máu ≤', 'number'],
+    ['logoutHp', 'Tự thoát server khi máu ≤ (không tự vào lại)', 'number']]]
+];
+function openPvp(b) {
+  const cfg = b.cfg;
+  const html = PVP_SECTIONS.map(([title, hint, fields]) => {
+    const rows = fields.map(([k, label, type, extra]) => {
+      const v = cfg[k] ?? '';
+      if (type === 'checkbox') return `<label class="f chk"><input type="checkbox" id="p_${k}" ${v ? 'checked' : ''}> ${label}</label>`;
+      let ctl;
+      if (type === 'select') ctl = `<select id="p_${k}">${extra.map(([val, t]) => `<option value="${val}" ${v === val ? 'selected' : ''}>${t}</option>`).join('')}</select>`;
+      else ctl = `<input id="p_${k}" type="${type}" ${type === 'number' ? 'step="any"' : ''} value="${esc(v)}" autocomplete="off">`;
+      return `<label class="f"><span>${label}</span>${ctl}</label>`;
+    }).join('');
+    return `<div class="sec"><h3>${title}</h3><div class="hint">${hint}</div>${rows}</div>`;
+  }).join('');
+  $('#dlgBody').innerHTML = `<h2>PvP của ${esc(cfg.name || 'bot')}</h2>${html}
+    <p class="hint">Lưu xong có hiệu lực ngay, không cần kết nối lại. Chỉ dùng ở nơi luật server cho phép bot/PvP tự động.</p>
+    <div class="actions"><button id="dCancel">Hủy</button><button class="primary" id="dOk">Lưu</button></div>`;
+  $('#dCancel').onclick = () => $('#dlg').close();
+  $('#dOk').onclick = () => {
+    const out = {};
+    for (const [, , fields] of PVP_SECTIONS) for (const [k, , type] of fields) {
+      const el = $('#p_' + k);
+      out[k] = type === 'checkbox' ? el.checked : el.value;
+    }
+    send({ type: 'update', id: b.id, cfg: out });
     $('#dlg').close();
   };
   $('#dlg').showModal();

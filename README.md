@@ -52,7 +52,28 @@ nhớ bật chuyển tiếp WebSocket (Upgrade header).
 - Offline/crack hoặc Microsoft (mã đăng nhập hiện trong log)
 - AuthMe 6.x kiểu hộp thoại và kiểu chat, tự /register, /login
 - Gõ chat/lệnh, lệnh tự chạy sau khi vào server, điều khiển W A S D, nhảy, đánh, chuột phải
+- Auto PvP: kiếm, rìu, end crystal, totem, ăn, giáp (xem mục bên dưới)
 - Anti-AFK, tự đánh mob, tự chuột phải, tự kết nối lại tăng dần
+
+## Auto PvP (nút "⚔ PvP" trên mỗi bot, lưu xong có hiệu lực ngay)
+Chia theo 6 mục, mỗi mục bật/tắt riêng:
+1. **Chung**: bật PvP, đánh mọi người chơi hoặc chỉ người vừa đánh mình, tầm phát hiện/tầm đánh, danh sách tên bỏ qua (bạn bè), né ngang (strafe). Tự bỏ qua người chơi creative/spectator và NPC giả.
+2. **Kiếm / Rìu**: tự cầm vũ khí tốt nhất trong túi, chờ hồi chiêu đúng từng loại (kiếm 0.625s, rìu 0.9-1.25s tuỳ chất liệu, server 1.8 thì đánh nhanh), đòn chí mạng (nhảy rồi đánh lúc rơi), tự đổi sang rìu khi đối thủ cầm khiên.
+3. **End Crystal**: đặt end_crystal lên obsidian/bedrock gần đối thủ rồi đập nổ. Chỉ chọn vị trí đặt nằm trong tầm đập, tính sát thương tự gánh (ước lượng thô theo khoảng cách và số mảnh giáp), không đặt khi máu thấp. Tuỳ chọn tự đặt obsidian làm đế.
+4. **Auto Totem**: luôn giữ Totem of Undying ở tay trái, vỡ cái nào thay cái mới ngay, ghi log mỗi lần vỡ.
+5. **Ăn & Giáp**: tự ăn khi đói (không ăn lúc đang đánh nhau), ăn táo vàng khi máu thấp (máu rất thấp thì ưu tiên táo vàng phép), tự mặc giáp tốt nhất.
+6. **An toàn**: chạy lui khi máu thấp, tự thoát server khi máu thấp hơn ngưỡng (không tự vào lại).
+
+### Tiết kiệm RAM (gói 512MB)
+- PvP tự viết, không dùng pathfinder nên không tốn thêm RAM đáng kể.
+- Mặc định mineflayer tải tầm nhìn 12 chunk rất tốn RAM; bản này mặc định **4 chunk** (đổi trong "Sửa cấu hình").
+- `NODE_OPTIONS=--max-old-space-size=384` đã được đặt sẵn trong `render.yaml`, `mc-bot.service`, `Dockerfile`, `start.sh`.
+- Đo thực tế: launcher + 2 bot trên tầm nhìn 4 chunk khoảng 130MB RSS. Gói 512MB nên chạy khoảng 2-4 bot.
+
+### Giới hạn cần biết
+- Bot không dò đường: chỉ chạy thẳng tới mục tiêu và nhảy khi vướng, nên không vượt được địa hình phức tạp.
+- Crystal PvP chỉ dùng được khi quanh đối thủ đã có obsidian/bedrock (hoặc bật tự đặt obsidian). Số liệu sát thương chỉ là ước lượng.
+- Nhiều server cấm bot/PvP tự động và có anti-cheat có thể ban IP hoặc tài khoản. Chỉ dùng nơi được phép.
 
 ## Phiên bản Minecraft mới
     npm install mineflayer@latest

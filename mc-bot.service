@@ -15,6 +15,7 @@ Environment=NODE_ENV=production
 Environment=HOST=0.0.0.0
 Environment=PORT=3000
 Environment=NO_OPEN=1
+Environment=NODE_OPTIONS=--max-old-space-size=384
 Environment=APP_PASSWORD=doi-mat-khau-o-day
 ExecStart=/usr/bin/node server.js
 Restart=always

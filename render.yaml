@@ -11,6 +11,8 @@ services:
         sync: false
       - key: NO_OPEN
         value: "1"
+      - key: NODE_OPTIONS          # giới hạn heap cho gói 512MB RAM
+        value: --max-old-space-size=384
       - key: NODE_VERSION
         value: "22"
       # Chỉ khi dùng gói trả phí + Persistent Disk (mount tại /var/data):
