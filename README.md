@@ -71,9 +71,21 @@ Chia theo 6 mục, mỗi mục bật/tắt riêng:
 - Đo thực tế: launcher + 2 bot trên tầm nhìn 4 chunk khoảng 130MB RSS. Gói 512MB nên chạy khoảng 2-4 bot.
 
 ### Giới hạn cần biết
-- Bot không dò đường: chỉ chạy thẳng tới mục tiêu và nhảy khi vướng, nên không vượt được địa hình phức tạp.
+- Bot không dò đường: chỉ chạy thẳng tới mục tiêu, tự nhảy bậc và tự thoát kẹt cục bộ (xem mục Di chuyển), nên không đi vòng được địa hình phức tạp.
 - Crystal PvP chỉ dùng được khi quanh đối thủ đã có obsidian/bedrock (hoặc bật tự đặt obsidian). Số liệu sát thương chỉ là ước lượng.
 - Nhiều server cấm bot/PvP tự động và có anti-cheat có thể ban IP hoặc tài khoản. Chỉ dùng nơi được phép.
+
+## Di chuyển, knockback, thoát kẹt (nút "🧭 Di chuyển")
+- **Knockback:** mineflayer vẫn nhận cú đẩy từ server như bình thường. Lỗi "bot không bị đẩy" thường do chính phím điều khiển của bot (PvP luôn giữ đi tới + chạy nhanh nên kéo bot quay lại ngay). Bản này nhả các phím đó 350ms sau mỗi cú đẩy hoặc vụ nổ, và bù tick vật lý khi máy yếu (`maxCatchupTicks`). Bật "Ghi log mỗi lần nhận knockback": nếu bị đánh mà không có dòng `Knockback` nào thì server không gửi cú đẩy cho bot (plugin hoặc anti-cheat), phía bot không sửa được.
+- **Tự nhảy:** gặp bậc cao 1 block (có chỗ trống phía trên) thì tự nhảy, cả khi đi thường lẫn khi đánh nhau. Slab/bậc thấp tự bước, tường cao hơn thì không nhảy.
+- **Thoát kẹt:** chỉ chạy khi bot đang nhấn đi tới mà đứng yên và có vật cản ngay trước mặt (nên không bị kích hoạt oan khi chưa đăng nhập AuthMe hay bị plugin giữ chân). Thứ tự:
+  1. Nhảy và đặt block ngay dưới chân (cần cobblestone, dirt, netherrack... trong túi), lặp tối đa 6 lần để trụ qua tường cao, rồi đi tiếp.
+  2. Không đặt được block (hết block, trần thấp) mà còn kẽ hở: cầm ender pearl ném qua kẽ hở. Bot mô phỏng quỹ đạo pearl, chỉ ném khi điểm rơi nằm phía trước vật cản và an toàn (không dung nham, không rơi quá 5 block).
+  3. Kín hết (hoặc không có pearl): cầm cúp tốt nhất đào 2 block (ngang chân và ngang đầu) phía trước rồi đi tiếp. Không đào rương, thùng, shulker, lò, spawner, và không đào khi có dung nham gần đó.
+- Tất cả có công tắc riêng. Bước đặt block và đào sẽ thay đổi thế giới, hãy tắt ở nơi có luật cấm.
+
+## Lệnh khi hồi sinh
+Trong "Sửa cấu hình" có ô **Lệnh chạy mỗi khi vừa hồi sinh** (mỗi dòng một lệnh, cách nhau 1.5s) và số giây chờ. Chỉ chạy sau khi bot chết rồi hồi sinh, không chạy khi đổi chiều không gian.
 
 ## Phiên bản Minecraft mới
     npm install mineflayer@latest

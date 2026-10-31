@@ -14,6 +14,7 @@ let nbt = null;
 try { nbt = require('prismarine-nbt'); } catch { /* không bắt buộc */ }
 const { planDialog } = require('./dialog');
 const { Pvp } = require('./pvp');
+const { Mover } = require('./mover');
 
 const HTTP_PORT = Number(process.env.PORT) || 3000;
 // Render/Docker/VPS đặt PORT hoặc HOST -> lắng nghe mọi địa chỉ; chạy cục bộ -> chỉ 127.0.0.1
@@ -70,6 +71,18 @@ const DEFAULTS = {
   // --- 6. An toàn ---
   retreatHp: 0,              // 0 = tắt; máu <= số này thì chạy lui
   logoutHp: 0,               // 0 = tắt; máu <= số này thì tự thoát server
+  // --- Di chuyển ---
+  kbRespect: true,           // tạm nhả phím di chuyển do bot tự đặt sau khi bị knockback/nổ
+  kbHold: 350,               // thời gian nhả (ms)
+  kbLog: false,              // ghi log mỗi lần nhận knockback (để kiểm tra server có gửi không)
+  autoJump: true,            // tự nhảy lên bậc cao 1 block
+  stuckEnabled: true,        // tự thoát khi bị kẹt
+  stuckAfter: 1.5,           // kẹt liên tục bao nhiêu giây thì bắt đầu thoát
+  stuckPlace: true,          // nhảy + đặt block dưới chân
+  stuckPearl: true,          // ném ender pearl qua kẽ hở
+  stuckDig: true,            // cầm cúp đào 2 block phía trước
+  respawnCommands: '',       // lệnh chạy ngay sau khi hồi sinh, mỗi dòng 1 lệnh
+  respawnDelay: 2,           // giây chờ sau khi hồi sinh
   joinCommands: '',          // lệnh chạy sau khi vào server, mỗi dòng 1 lệnh
   joinDelay: 6               // giây chờ sau khi spawn
 };
@@ -115,7 +128,7 @@ function sanitize(input) {
     const d = DEFAULTS[k], v = input[k];
     if (typeof d === 'boolean') out[k] = !!v;
     else if (typeof d === 'number') out[k] = Number.isFinite(Number(v)) && v !== '' ? Number(v) : d;
-    else if (k === 'password' || k === 'joinCommands') out[k] = String(v ?? '');
+    else if (k === 'password' || k === 'joinCommands' || k === 'respawnCommands') out[k] = String(v ?? '');
     else out[k] = String(v ?? '').trim();
   }
   if ('pvpMode' in out && !['all', 'retaliate'].includes(out.pvpMode)) out.pvpMode = 'all';
@@ -152,6 +165,8 @@ class Session {
     this.cfg = { ...DEFAULTS, ...sanitize(cfg || {}) };
     this.bot = null;
     this.pvp = null;
+    this.mover = null;
+    this.deadPending = false;
     this.state = 'offline'; // offline | connecting | online
     this.logs = [];
     this.timers = new Set();
@@ -219,7 +234,8 @@ class Session {
       checkTimeoutInterval: 90 * 1000, // chịu lag server tới 90s mới coi là timeout
       connectTimeout: 30 * 1000,
       hideErrors: true,
-      viewDistance: Math.max(2, Number(c.viewDistance) || 4)
+      viewDistance: Math.max(2, Number(c.viewDistance) || 4),
+      maxCatchupTicks: 8   // bù tick vật lý khi máy yếu/lag, giúp knockback và rơi không bị "nuốt"
     };
     if (c.version) opts.version = c.version;
     if (c.auth === 'microsoft') {
@@ -234,6 +250,7 @@ class Session {
     this.bindEvents(bot);
     this.bindDialog(bot);
     this.pvp = new Pvp(this, bot);
+    this.mover = new Mover(this, bot);
   }
 
   /* ----- Hộp thoại (Dialog) của AuthMe 6.x trên 1.21.6+ ----- */
@@ -296,6 +313,7 @@ class Session {
       if (!alive()) return;
       this.setState('online');
       this.applyToggles();
+      this.runRespawnCommands();   // vừa hồi sinh sau khi chết (chỉ chạy khi trước đó có 'death')
       if (this.spawned) return; // spawn lại do chết / đổi thế giới
       this.spawned = true;
       this.attempts = 0;
@@ -320,7 +338,12 @@ class Session {
       this.checkAuthPrompt(text);
     });
 
-    bot.on('death', () => alive() && this.log('warn', 'Bot đã chết (tự hồi sinh).'));
+    bot.on('death', () => { if (!alive()) return; this.deadPending = true; this.log('warn', 'Bot đã chết (tự hồi sinh).'); });
+    // dự phòng: một số server gửi gói respawn nhưng không gửi lại máu nên 'spawn' không bắn
+    bot.on('respawn', () => {
+      if (!alive() || !this.deadPending) return;
+      this.later(() => { if (alive()) this.runRespawnCommands(); }, 1500);
+    });
     bot.on('resourcePack', () => {
       if (!alive()) return;
       this.log('sys', 'Server gửi resource pack -> tự chấp nhận.');
@@ -340,8 +363,19 @@ class Session {
     });
   }
 
+  runRespawnCommands() {
+    if (!this.deadPending) return;
+    this.deadPending = false;
+    const rl = String(this.cfg.respawnCommands || '').split('\n').map(s => s.trim()).filter(Boolean);
+    if (!rl.length) return;
+    const delay = Math.max(0, Number(this.cfg.respawnDelay) || 0);
+    this.log('sys', `Vừa hồi sinh, sẽ chạy ${rl.length} lệnh sau ${delay}s.`);
+    rl.forEach((line, i) => this.later(() => this.say(line, true), delay * 1000 + i * 1500));
+  }
+
   afterEnd(reason) {
     if (this.pvp) { this.pvp.stop(); this.pvp = null; }
+    if (this.mover) { this.mover.stop(); this.mover = null; }
     this.clearTimers();
     this.bot = null;
     this.log('sys', 'Mất kết nối: ' + (reason || 'không rõ lý do'));

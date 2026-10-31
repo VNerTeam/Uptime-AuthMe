@@ -114,6 +114,7 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
         <button class="primary" id="btnConnect">Kết nối</button>
         <button id="btnDisconnect">Ngắt kết nối</button>
         <button id="btnPvp">⚔ PvP</button>
+        <button id="btnMove">🧭 Di chuyển</button>
         <button id="btnEdit">Sửa cấu hình</button>
         <button class="danger" id="btnRemove">Xóa</button>
       </div>
@@ -303,6 +304,7 @@ $('#btnDisconnect').onclick = () => send({ type: 'disconnect', id: selected });
 $('#btnRemove').onclick = () => { if (confirm('Xóa bot này khỏi danh sách?')) send({ type: 'remove', id: selected }); };
 $('#btnEdit').onclick = () => openEditor(bots.get(selected));
 $('#btnPvp').onclick = () => { const b = bots.get(selected); if (b) openPvp(b); };
+$('#btnMove').onclick = () => { const b = bots.get(selected); if (b) openMove(b); };
 $('#btnAdd').onclick = $('#btnAdd2').onclick = () => openEditor(null);
 
 /* ---------- điều khiển ---------- */
@@ -367,6 +369,8 @@ const FIELDS = [
   ['password', 'Mật khẩu AuthMe', 'password', ''],
   ['joinCommands', 'Lệnh chạy sau khi vào server (mỗi dòng một lệnh)', 'textarea', '/server survival\n/home farm'],
   ['joinDelay', 'Chờ bao nhiêu giây sau khi vào rồi mới chạy các lệnh trên', 'number', ''],
+  ['respawnCommands', 'Lệnh chạy mỗi khi vừa hồi sinh sau khi chết (mỗi dòng một lệnh)', 'textarea', '/kit pvp\n/home base'],
+  ['respawnDelay', 'Chờ bao nhiêu giây sau khi hồi sinh rồi mới chạy các lệnh trên', 'number', '2'],
   ['autoAuth', 'Tự /register và /login khi server yêu cầu', 'checkbox'],
   ['viewDistance', 'Tầm nhìn chunk (2–12, nhỏ = tiết kiệm RAM, khuyên 3–4)', 'number', '4'],
   ['autoReconnect', 'Tự kết nối lại khi bị rớt', 'checkbox'],
@@ -374,7 +378,7 @@ const FIELDS = [
   ['reconnectDelay', 'Chờ trước khi kết nối lại (giây, tăng dần nếu rớt liên tục)', 'number', '']
 ];
 function openEditor(b) {
-  const cfg = b ? b.cfg : { auth: 'offline', autoAuth: true, autoReconnect: true, autoStart: true, reconnectDelay: 10, joinDelay: 6, joinCommands: '' };
+  const cfg = b ? b.cfg : { auth: 'offline', autoAuth: true, autoReconnect: true, autoStart: true, reconnectDelay: 10, joinDelay: 6, joinCommands: '', respawnCommands: '', respawnDelay: 2 };
   const html = FIELDS.map(([k, label, type, extra]) => {
     const v = cfg[k] ?? '';
     if (type === 'checkbox') return `<label class="f chk"><input type="checkbox" id="f_${k}" ${v ? 'checked' : ''}> ${label}</label>`;
@@ -432,9 +436,9 @@ const PVP_SECTIONS = [
     ['retreatHp', 'Chạy lui khỏi đối thủ khi máu ≤', 'number'],
     ['logoutHp', 'Tự thoát server khi máu ≤ (không tự vào lại)', 'number']]]
 ];
-function openPvp(b) {
+function openSections(title, sections, foot, b) {
   const cfg = b.cfg;
-  const html = PVP_SECTIONS.map(([title, hint, fields]) => {
+  const html = sections.map(([title, hint, fields]) => {
     const rows = fields.map(([k, label, type, extra]) => {
       const v = cfg[k] ?? '';
       if (type === 'checkbox') return `<label class="f chk"><input type="checkbox" id="p_${k}" ${v ? 'checked' : ''}> ${label}</label>`;
@@ -445,13 +449,13 @@ function openPvp(b) {
     }).join('');
     return `<div class="sec"><h3>${title}</h3><div class="hint">${hint}</div>${rows}</div>`;
   }).join('');
-  $('#dlgBody').innerHTML = `<h2>PvP của ${esc(cfg.name || 'bot')}</h2>${html}
-    <p class="hint">Lưu xong có hiệu lực ngay, không cần kết nối lại. Chỉ dùng ở nơi luật server cho phép bot/PvP tự động.</p>
+  $('#dlgBody').innerHTML = `<h2>${title} ${esc(cfg.name || 'bot')}</h2>${html}
+    <p class="hint">Lưu xong có hiệu lực ngay, không cần kết nối lại. ${foot}</p>
     <div class="actions"><button id="dCancel">Hủy</button><button class="primary" id="dOk">Lưu</button></div>`;
   $('#dCancel').onclick = () => $('#dlg').close();
   $('#dOk').onclick = () => {
     const out = {};
-    for (const [, , fields] of PVP_SECTIONS) for (const [k, , type] of fields) {
+    for (const [, , fields] of sections) for (const [k, , type] of fields) {
       const el = $('#p_' + k);
       out[k] = type === 'checkbox' ? el.checked : el.value;
     }
@@ -460,6 +464,23 @@ function openPvp(b) {
   };
   $('#dlg').showModal();
 }
+
+const openPvp = (b) => openSections('PvP của', PVP_SECTIONS, 'Chỉ dùng ở nơi luật server cho phép bot/PvP tự động.', b);
+const MOVE_SECTIONS = [
+  ['1. Knockback', 'Bot vẫn nhận knockback từ server. Mục này chỉ để bot không tự chạy ngược lại ngay khi vừa bị đẩy. Nếu bật ghi log mà không thấy dòng "Knockback" khi bị đánh thì server không gửi cú đẩy cho bot (do plugin/anti-cheat), phía bot không sửa được.', [
+    ['kbRespect', 'Tạm nhả phím đi/chạy sau khi bị đánh hoặc dính nổ', 'checkbox'],
+    ['kbHold', 'Thời gian nhả phím (ms, 0–2000)', 'number'],
+    ['kbLog', 'Ghi log mỗi lần nhận knockback (để kiểm tra)', 'checkbox']]],
+  ['2. Tự nhảy', 'Khi đang đi tới mà gặp bậc cao 1 block (có chỗ trống phía trên) thì tự nhảy lên, cả lúc đi thường lẫn lúc đánh nhau.', [
+    ['autoJump', 'Tự nhảy qua bậc cao 1 block', 'checkbox']]],
+  ['3. Thoát kẹt', 'Chỉ kích hoạt khi bot đang nhấn đi tới mà đứng yên và có vật cản ngay trước mặt. Thứ tự: (a) nhảy + đặt block dưới chân rồi đi tiếp; (b) nếu không đặt được mà còn kẽ hở thì ném ender pearl qua kẽ hở; (c) nếu kín hết thì cầm cúp đào 2 block (chân + đầu) phía trước. Không đào rương, thùng, shulker, lò, spawner và không đào gần dung nham.', [
+    ['stuckEnabled', 'Bật tự thoát kẹt', 'checkbox'],
+    ['stuckAfter', 'Kẹt liên tục bao nhiêu giây thì bắt đầu thoát (0.5–30)', 'number'],
+    ['stuckPlace', 'Nhảy + đặt block dưới chân (cần cobblestone/dirt/... trong túi)', 'checkbox'],
+    ['stuckPearl', 'Ném ender pearl qua kẽ hở (cần ender_pearl trong túi)', 'checkbox'],
+    ['stuckDig', 'Cầm cúp đào 2 block phía trước khi kín hết', 'checkbox']]]
+];
+const openMove = (b) => openSections('Di chuyển của', MOVE_SECTIONS, 'Bot không dò đường: các bước này chỉ xử lý vướng víu cục bộ ngay trước mặt.', b);
 </script>
 </body>
 </html>

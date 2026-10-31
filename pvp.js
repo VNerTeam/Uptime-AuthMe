@@ -101,6 +101,9 @@ class Pvp {
       if (this.s.bot !== bot || this.s.state !== 'online' || !bot.entity) return;
       const now = Date.now();
 
+      // đang thoát kẹt: Mover điều khiển, PvP tạm dừng
+      if (this.s.mover && this.s.mover.escaping) return;
+
       // 6. An toàn: thoát khi máu quá thấp
       if (c.logoutHp > 0 && bot.health > 0 && bot.health <= c.logoutHp && !this.loggedOut) {
         this.loggedOut = true;
@@ -283,9 +286,18 @@ class Pvp {
     return 300;
   }
 
+  syncCache() {
+    for (const k of Object.keys(this.cs)) this.cs[k] = !!this.bot.controlState[k];
+  }
+
   chase(d, reach, now) {
     const bot = this.bot, c = this.c;
     const e = bot.entity;
+    // vừa bị knockback/nổ: nhả phím di chuyển để cú đẩy diễn ra tự nhiên, không chạy ngược lại ngay
+    if (this.s.mover && this.s.mover.kbActive(now)) {
+      for (const k of ['forward', 'back', 'sprint', 'left', 'right']) this.ctl(k, false);
+      return;
+    }
     const falling = !e.onGround;
     this.ctl('forward', d > reach - 0.4);
     this.ctl('back', d < 1.4);
@@ -321,7 +333,8 @@ class Pvp {
     const bot = this.bot, p = bot.entity.position, t = target.position;
     const dx = p.x - t.x, dz = p.z - t.z;
     bot.look(Math.atan2(-dx, -dz), 0, true).catch(() => {});
-    this.ctl('forward', true); this.ctl('sprint', true); this.ctl('back', false);
+    const kb = this.s.mover && this.s.mover.kbActive(Date.now());
+    this.ctl('forward', !kb); this.ctl('sprint', !kb); this.ctl('back', false);
     this.ctl('left', false); this.ctl('right', false);
     this.ctl('jump', bot.entity.isCollidedHorizontally);
   }
