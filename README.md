@@ -53,6 +53,7 @@ nhớ bật chuyển tiếp WebSocket (Upgrade header).
 - AuthMe 6.x kiểu hộp thoại và kiểu chat, tự /register, /login
 - Gõ chat/lệnh, lệnh tự chạy sau khi vào server, điều khiển W A S D, nhảy, đánh, chuột phải
 - Auto PvP: kiếm, rìu, end crystal, totem, ăn, giáp (xem mục bên dưới)
+- Tuỳ chọn **Chấp nhận resource pack của server** (Sửa cấu hình, mặc định bật). Tắt thì bot trả lời "từ chối"; nếu server bắt buộc pack và kick, log sẽ báo và bot không tự vào lại. Bật thì bot báo "đã tải xong" mà không thật sự tải gói về (tiết kiệm RAM/mạng)
 - Anti-AFK, tự đánh mob, tự chuột phải, tự kết nối lại tăng dần
 
 ## Auto PvP (nút "⚔ PvP" trên mỗi bot, lưu xong có hiệu lực ngay)

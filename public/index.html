@@ -372,13 +372,14 @@ const FIELDS = [
   ['respawnCommands', 'Lệnh chạy mỗi khi vừa hồi sinh sau khi chết (mỗi dòng một lệnh)', 'textarea', '/kit pvp\n/home base'],
   ['respawnDelay', 'Chờ bao nhiêu giây sau khi hồi sinh rồi mới chạy các lệnh trên', 'number', '2'],
   ['autoAuth', 'Tự /register và /login khi server yêu cầu', 'checkbox'],
+  ['acceptResourcePack', 'Chấp nhận tải resource pack của server (bỏ tích = từ chối; server bắt buộc pack có thể kick bot)', 'checkbox'],
   ['viewDistance', 'Tầm nhìn chunk (2–12, nhỏ = tiết kiệm RAM, khuyên 3–4)', 'number', '4'],
   ['autoReconnect', 'Tự kết nối lại khi bị rớt', 'checkbox'],
   ['autoStart', 'Tự kết nối khi server khởi động lại (Render/VPS)', 'checkbox'],
   ['reconnectDelay', 'Chờ trước khi kết nối lại (giây, tăng dần nếu rớt liên tục)', 'number', '']
 ];
 function openEditor(b) {
-  const cfg = b ? b.cfg : { auth: 'offline', autoAuth: true, autoReconnect: true, autoStart: true, reconnectDelay: 10, joinDelay: 6, joinCommands: '', respawnCommands: '', respawnDelay: 2 };
+  const cfg = b ? b.cfg : { auth: 'offline', autoAuth: true, autoReconnect: true, autoStart: true, acceptResourcePack: true, reconnectDelay: 10, joinDelay: 6, joinCommands: '', respawnCommands: '', respawnDelay: 2 };
   const html = FIELDS.map(([k, label, type, extra]) => {
     const v = cfg[k] ?? '';
     if (type === 'checkbox') return `<label class="f chk"><input type="checkbox" id="f_${k}" ${v ? 'checked' : ''}> ${label}</label>`;

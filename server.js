@@ -45,6 +45,7 @@ const DEFAULTS = {
   autoUse: false,            // tự chuột phải (dùng vật phẩm đang cầm)
   clickInterval: 1000,       // ms
   autoStart: false,          // tự kết nối khi server (Render/VPS) khởi động lại
+  acceptResourcePack: true,  // true = chấp nhận resource pack của server | false = từ chối
   viewDistance: 4,           // tầm nhìn chunk: càng nhỏ càng tiết kiệm RAM (mặc định mineflayer là 12!)
   // --- PvP: 1. Chung ---
   pvpEnabled: false,         // đánh người chơi gần đó
@@ -225,6 +226,7 @@ class Session {
     this.lastAuth = 0;
     this.dialogCount = 0;
     this.spawned = false;
+    this.packDeclined = false;
     this.setState('connecting');
     const port = Number(c.port) || 25565;
     this.log('sys', `Đang kết nối ${c.host}:${port} | phiên bản: ${c.version || 'tự nhận diện'} | tên: ${c.name}`);
@@ -238,6 +240,9 @@ class Session {
       maxCatchupTicks: 8   // bù tick vật lý khi máy yếu/lag, giúp knockback và rơi không bị "nuốt"
     };
     if (c.version) opts.version = c.version;
+    // Từ chối resource pack: tắt plugin nội bộ của mineflayer (nó tự chấp nhận ở giai đoạn configuration,
+    // và hàm denyResourcePack của nó gửi thừa một gói thiếu uuid) rồi tự trả lời DECLINED ở bindResourcePack()
+    if (!c.acceptResourcePack) opts.plugins = { resource_pack: false };
     if (c.auth === 'microsoft') {
       opts.profilesFolder = AUTH_CACHE;
       opts.onMsaCode = (d) => this.log('sys', `ĐĂNG NHẬP MICROSOFT: mở ${d.verification_uri} và nhập mã ${d.user_code}`);
@@ -249,6 +254,7 @@ class Session {
     this.bot = bot;
     this.bindEvents(bot);
     this.bindDialog(bot);
+    this.bindResourcePack(bot);
     this.pvp = new Pvp(this, bot);
     this.mover = new Mover(this, bot);
   }
@@ -293,6 +299,36 @@ class Session {
       } catch (e) { this.log('err', 'Lỗi xử lý hộp thoại: ' + e.message); }
     });
     bot._client.on('clear_dialog', () => alive() && this.log('sys', 'Server đóng hộp thoại.'));
+  }
+
+  /* ----- Resource pack của server: chấp nhận hoặc từ chối theo cấu hình ----- */
+  bindResourcePack(bot) {
+    const alive = () => this.bot === bot;
+    const client = bot._client;
+    if (this.cfg.acceptResourcePack) {
+      // plugin nội bộ của mineflayer lo việc trả lời ACCEPTED + SUCCESSFULLY_LOADED (bot không thật sự tải gói về)
+      bot.on('resourcePack', () => {
+        if (!alive()) return;
+        this.log('sys', 'Server gửi resource pack -> chấp nhận.');
+        if (client.state === 'play') this.later(() => { try { bot.acceptResourcePack(); } catch { /* bỏ qua */ } }, 0); // hoãn 1 nhịp để plugin kịp lưu uuid/hash
+      });
+      return;
+    }
+    const DECLINED = 1;
+    const decline = (data, withUuid) => {
+      if (!alive()) return;
+      this.packDeclined = true;
+      this.log('sys', 'Server gửi resource pack -> từ chối (đã tắt \"chấp nhận resource pack\").');
+      try {
+        const pkt = { result: DECLINED };
+        if (withUuid) pkt.uuid = data.uuid;
+        else if (data.hash !== undefined && bot.supportFeature && bot.supportFeature('resourcePackUsesHash')) pkt.hash = data.hash;
+        client.write('resource_pack_receive', pkt);
+      } catch (e) { this.log('err', 'Không gửi được phản hồi từ chối resource pack: ' + e.message); }
+    };
+    // 1.20.3+: add_resource_pack (có uuid). Bản cũ hơn: resource_pack_send (có thể có uuid hoặc hash)
+    client.on('add_resource_pack', (d) => decline(d, true));
+    client.on('resource_pack_send', (d) => decline(d, !!(bot.supportFeature && bot.supportFeature('resourcePackUsesUUID'))));
   }
 
   bindEvents(bot) {
@@ -344,16 +380,14 @@ class Session {
       if (!alive() || !this.deadPending) return;
       this.later(() => { if (alive()) this.runRespawnCommands(); }, 1500);
     });
-    bot.on('resourcePack', () => {
-      if (!alive()) return;
-      this.log('sys', 'Server gửi resource pack -> tự chấp nhận.');
-      try { bot.acceptResourcePack(); } catch { /* bỏ qua */ }
-    });
-
     bot.on('kicked', (reason) => {
       if (!alive()) return;
       const t = reasonText(reason);
       this.log('err', 'Bị kick: ' + t);
+      if (this.packDeclined && /resource|texture|pack/i.test(t)) {
+        this.noRetry = true;
+        this.log('warn', 'Có vẻ server BẮT BUỘC resource pack. Hãy bật \"Chấp nhận resource pack của server\" trong Sửa cấu hình rồi kết nối lại (đã tắt tự kết nối lại để khỏi lặp vô ích).');
+      }
       if (/ban|cấm/i.test(t)) { this.noRetry = true; this.log('warn', 'Có vẻ bị ban -> tắt tự kết nối lại.'); }
     });
     bot.on('error', (err) => alive() && this.log('err', 'Lỗi: ' + (err && err.message || err)));
